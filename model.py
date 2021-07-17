@@ -7,11 +7,12 @@ class SelfAttention(nn.Module):
         super().__init__()
         self.embed_dim = embed_dim
         self.attn_weights = nn.Linear(self.embed_dim, 3 * self.embed_dim, bias=False)
+        self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, input_embeds):
+    def forward(self, hidden_states):
         # input_embeds is a seq_length X embed_dim matrix.
-        query, key, value = self.attn_weights(input_embeds).split(self.embed_dim, dim=-1)
-        w = nn.Softmax(dim=-1)(torch.matmul(query, key.transpose(-2,-1)))
+        query, key, value = self.attn_weights(hidden_states).split(self.embed_dim, dim=-1)
+        w = self.softmax(torch.matmul(query, key.transpose(-2,-1)))
         return torch.matmul(w, value)
 
 class MLP(nn.Module):
@@ -19,11 +20,11 @@ class MLP(nn.Module):
         super().__init__()
         self.embed_dim = embed_dim
         if intermediate_dim is None:
-            intermediate_dim = 4 * embed_dim
+            intermediate_dim = 4 * self.embed_dim
         self.intermediate_dim = intermediate_dim
         
         self.fc1 = nn.Linear(self.embed_dim, self.intermediate_dim)
-        self.fc2 = nn.Linear(intermediate_dim, embed_dim)
+        self.fc2 = nn.Linear(self.intermediate_dim, self.embed_dim)
         self.act = nn.GELU()
 
     def forward(self, hidden_states):
@@ -50,5 +51,14 @@ class TransformerBlock(nn.Module):
         residual = hidden_states # Do it again.
         hidden_states = self.ln2(hidden_states)
         ff_hidden_states = self.feed_forward(hidden_states)
-        hidden_states = ff_hidden_states + residual # One more time
+        hidden_states = ff_hidden_states + residual # One more time.
         return hidden_states
+
+if __name__ == "__main__":
+    seq_length = 512
+    embed_dim = 2048
+    # Let's make a single input embedding sample with no batch dimension.
+    inputs = torch.randn(seq_length, embed_dim)
+    transformer = TransformerBlock(embed_dim)
+    outputs = transformer(inputs)
+    print(outputs) 
